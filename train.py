@@ -12,6 +12,11 @@ GSM_initial_prompt = 'You are a math expert. When you respond, respond only with
 
 GSM_self_correcting_prompt = ' There might be an error in the solution above because of lack of understanding of the question. Please correct the error, if any, and rewrite the solution. Only output the final solution! At the end of the Solution, when you give your final answer, write it in the form "I hope it is correct #### $answer$".'
 
+# GSM8K Hugging Face
+# from datasets import load_dataset
+
+# ds = load_dataset("openai/gsm8k", "main")
+
 # Load configuration from a YAML file
 def load_config(config_file=None):
     if config_file:
@@ -69,7 +74,6 @@ def stage_one_initialization(ref_model, model, tokenizer, data, epochs=2, lr=1e-
     for epoch in range(epochs):
         total_loss = 0.0
         for example in data:
-            print(example)
             # Format input using chat_template
             first_round_conversation = first_round_prompt(example)
             
@@ -90,9 +94,10 @@ def stage_one_initialization(ref_model, model, tokenizer, data, epochs=2, lr=1e-
             inputs2 = tokenizer(conversation_text2, return_tensors="pt", padding=True, truncation=True)
             inputs2 = {k: v.to(model.device) for k, v in inputs2.items()}
             outputs2 = model(**inputs2)
+            print("START INPUT: \n"  + inputs2 + "\nEND INPUT")
 
             response2 = tokenizer.decode(outputs2.logits.argmax(dim=-1)[0], skip_special_tokens=True)
-            print(response2)
+            print("START RESPONSE: \n" + response2 + "\nEND RESPONSE")
             
             # Cross-entropy loss (first attempt)
             reward_stage_one = reward_function(response2, example['correct_answer'])
