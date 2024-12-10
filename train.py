@@ -30,15 +30,6 @@ def load_config(config_file=None):
         }
     return config
 
-# Reward function for self-correction
-def reward_function(original_answer, corrected_answer, correct_answer):
-    if corrected_answer == correct_answer:  # Fully correct answer
-        return 1.0
-    elif corrected_answer == original_answer:  # No improvement from original answer
-        return -1.0
-    else:
-        return 0.5  # Partial improvement, better than original but still incorrect
-
 # Assume inputs are detokenized
 def reward_function(y, y_star): 
     '''
@@ -78,7 +69,7 @@ def stage_one_initialization(ref_model, model, tokenizer, data, epochs=2, lr=1e-
     for epoch in range(epochs):
         total_loss = 0.0
         for example in data:
-
+            print(example)
             # Format input using chat_template
             first_round_conversation = first_round_prompt(example)
             
@@ -89,7 +80,6 @@ def stage_one_initialization(ref_model, model, tokenizer, data, epochs=2, lr=1e-
             inputs1 = {k: v.to(model.device) for k, v in inputs1.items()}
             
             outputs1 = model(**inputs1)
-            print(outputs1)
 
             with torch.no_grad():
                 ref_outputs = ref_model(**inputs1)  # Reference policy outputs
