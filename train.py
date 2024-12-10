@@ -81,7 +81,7 @@ def stage_one_initialization(ref_model, model, tokenizer, data, epochs=2, lr=1e-
             conversation_text = tokenizer.apply_chat_template(first_round_conversation, tokenize=False, add_generation_prompt=True)
             
             inputs1 = tokenizer(conversation_text, return_tensors="pt", padding=True, truncation=True)
-            # inputs1 = {k: v.to(model.device) for k, v in inputs1.items()}
+            inputs1 = {k: v.to(model.device) for k, v in inputs1.items()}
             
             outputs1 = model(**inputs1)
 
@@ -184,15 +184,19 @@ def main(config_file=None):
     # Load model and tokenizer
     model_name = config["model_name"]
     tokenizer = AutoTokenizer.from_pretrained(model_name)
+    
 
     tokenizer.chat_template = "{% if not add_generation_prompt is defined %}{% set add_generation_prompt = false %}{% endif %}{% for message in messages %}{{'<|im_start|>' + message['role'] + '\n' + message['content'] + '<|im_end|>' + '\n'}}{% endfor %}{% if add_generation_prompt %}{{ '<|im_start|>assistant\n' }}{% endif %}"
     model = MambaForCausalLM.from_pretrained(model_name, 
                                       device_map="auto", 
                                       attn_implementation='eager')
+    model.device = "cuda" if torch.cuda.is_available() else "cpu"
 
     ref_model = MambaForCausalLM.from_pretrained(model_name, 
                                       device_map="auto", 
                                       attn_implementation='eager')
+    ref_model.device = "cuda" if torch.cuda.is_available() else "cpu"
+    ref_model.eval()
 
     # Load the dataset
     data_file_path = config["data_file"]
