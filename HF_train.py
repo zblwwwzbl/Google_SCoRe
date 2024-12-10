@@ -9,6 +9,25 @@ import yaml
 
 sc_prompt = "There might be an error in the solution above because of lack of understanding of the question. Please correct the error, if any, and rewrite the solution"
 
+
+'''
+load dataset
+
+set up inference
+
+set up trainer
+'''
+
+# Load model directly
+from transformers import AutoTokenizer, AutoModelForCausalLM
+
+tokenizer = AutoTokenizer.from_pretrained("state-spaces/mamba-130m-hf")
+model = AutoModelForCausalLM.from_pretrained("state-spaces/mamba-130m-hf")
+
+
+from datasets import load_dataset
+ds = load_dataset("qintongli/GSM-Plus")
+
 # Load configuration from a YAML file
 def load_config(config_file=None):
     if config_file:
@@ -17,12 +36,12 @@ def load_config(config_file=None):
     else:
         # Default configuration
         config = {
-            "model_name": "state-spaces/mamba-1.1b",  # Smallest Mamba model
+            "model_name": "state-spaces/mamba-2.8b",  # Model updated to gemma-2-2B-it
             "learning_rate": 1e-5,
             "epochs_stage_1": 2,
             "epochs_stage_2": 3,
             "beta_kl": 0.1,
-            "alpha": 1.5,
+            "alpha": 1.0,
             "data_file": "SCoRe_dataset.csv"
         }
     return config
@@ -35,22 +54,6 @@ def reward_function(original_answer, corrected_answer, correct_answer):
         return -1.0
     else:
         return 0.5  # Partial improvement, better than original but still incorrect
-
-# Assume inputs are detokenized
-def reward_function(y, y_star): 
-    '''
-    y: nth round including final model output (up to L+1 in the paper)
-    y_star: correct answer (oracle response)
-    '''
-    #
-    start_keyword = "####" # the answer is prepended by ####
-    start_index = y.find(start_keyword)
-    if start_index == -1:
-        y_answer = ""
-    
-    start_index += len(start_keyword)
-    y[start_index:].strip() 
-    
 
 def first_round_prompt(example):
     return [
@@ -65,7 +68,7 @@ def second_round_prompt(example, first_round_answer):
     ]
 
 # Stage I: Train initial model to generate first attempt (y1) and prevent mode collapse
-def stage_one_initialization(ref_model, model, tokenizer, data, epochs=2, lr=1e-5, beta_kl=0.1):
+def stage_one_initialization(model, tokenizer, data, epochs=2, lr=1e-5, beta_kl=0.1):
     optimizer = optim.AdamW(model.parameters(), lr=lr)
     model.train()
     
@@ -77,35 +80,25 @@ def stage_one_initialization(ref_model, model, tokenizer, data, epochs=2, lr=1e-
             first_round_conversation = first_round_prompt(example)
             
             # Convert conversation to a single string
-            conversation_text = tokenizer.apply_chat_template(first_round_conversation, tokenize=False, add_generation_prompt=True)
+            conversation_text = tokenizer.apply_chat_template(first_round_conversation, tokenize=False)
             
-            inputs1 = tokenizer(conversation_text, return_tensors="pt", padding=True, truncation=True)
-            inputs1 = {k: v.to(model.device) for k, v in inputs1.items()}
+            inputs = tokenizer(conversation_text, return_tensors="pt", padding=True, truncation=True)
+            inputs = {k: v.to(model.device) for k, v in inputs.items()}
             
-            outputs1 = model(**inputs1)
-
-            with torch.no_grad():
-                ref_outputs = ref_model(**inputs1)  # Reference policy outputs
-                ref_probs = F.softmax(ref_outputs.logits, dim=-1)
-
-            second_round_conversation = second_round_prompt(example, tokenizer.decode(outputs1.logits.argmax(dim=-1)[0], skip_special_tokens=True))
-            conversation_text2 = tokenizer.apply_chat_template(second_round_conversation, tokenize=False, add_generation_prompt=True)
-            inputs2 = tokenizer(conversation_text2, return_tensors="pt", padding=True, truncation=True)
-            inputs2 = {k: v.to(model.device) for k, v in inputs2.items()}
-            outputs2 = model(**inputs2)
-
-            response2 = tokenizer.decode(outputs2.logits.argmax(dim=-1)[0], skip_special_tokens=True)
+            outputs = model(**inputs, labels=inputs['input_ids'])
             
             # Cross-entropy loss (first attempt)
-            reward_stage_one = reward_function(response2, example['correct_answer'])
+            cross_entropy_loss = outputs.loss
             
             # Log probabilities and apply KL divergence loss
-            logits = outputs2.logits
+            logits = outputs.logits
             log_probs = F.log_softmax(logits, dim=-1)
-            kl_loss = F.kl_div(log_probs, ref_probs, reduction='batchmean')
+            with torch.no_grad():
+                target_probs = F.softmax(logits, dim=-1)
+            kl_loss = F.kl_div(log_probs, target_probs, reduction='batchmean')
             
             # Total loss combines cross-entropy and scaled KL divergence
-            total_loss_value = -reward_stage_one + beta_kl * kl_loss
+            total_loss_value = cross_entropy_loss + beta_kl * kl_loss
             
             optimizer.zero_grad()
             total_loss_value.backward()
@@ -114,62 +107,74 @@ def stage_one_initialization(ref_model, model, tokenizer, data, epochs=2, lr=1e-
             total_loss += total_loss_value.item()
         print(f"Stage I - Epoch {epoch+1}, Loss: {total_loss:.4f}")
 
-def stage_two_training_with_reward_shaping(ref_model, model, tokenizer, data, epochs=3, lr=1e-5, alpha=2.0, beta_kl=0.1):
+def stage1_chat_format(example):
+    return [
+        {"role": "user", "content": example['question']},
+        {"role": "assistant", "content": f"답변: {example.get('original_answer', '')}"}
+    ]
+
+def stage_two_training_with_reward_shaping(model, tokenizer, data, epochs=3, lr=1e-5, alpha=1.0):
     optimizer = optim.AdamW(model.parameters(), lr=lr)
     model.train()
     
     for epoch in range(epochs):
         total_loss = 0.0
         for example in data:
-            # Format input using chat_template
-            first_round_conversation = first_round_prompt(example)
-            
-            # Convert conversation to a single string
-            conversation_text = tokenizer.apply_chat_template(first_round_conversation, tokenize=False, add_generation_prompt=True)
-            
-            inputs1 = tokenizer(conversation_text, return_tensors="pt", padding=True, truncation=True)
+            # First attempt (y1): Generate the initial answer using chat_template
+            conversation1 = stage2_chat_format(example)
+            conversation_text1 = tokenizer.apply_chat_template(conversation1, tokenize=False)
+            inputs1 = tokenizer(conversation_text1, return_tensors="pt", padding=True, truncation=True)
             inputs1 = {k: v.to(model.device) for k, v in inputs1.items()}
             
-            outputs1 = model(**inputs1)
-
+            # Generate output for the first attempt
             with torch.no_grad():
-                ref_outputs1 = ref_model(**inputs1)  # Reference policy outputs
-                ref_probs1 = F.softmax(ref_outputs1.logits, dim=-1)
-
-            second_round_conversation = second_round_prompt(example, tokenizer.decode(outputs1.logits.argmax(dim=-1)[0], skip_special_tokens=True))
-            conversation_text2 = tokenizer.apply_chat_template(second_round_conversation, tokenize=False, add_generation_prompt=True)
+                outputs1 = model(**inputs1)
+            
+            # Second attempt (y2): Corrected answer
+            conversation2 = chat_format(example)
+            conversation_text2 = tokenizer.apply_chat_template(conversation2, tokenize=False)
             inputs2 = tokenizer(conversation_text2, return_tensors="pt", padding=True, truncation=True)
             inputs2 = {k: v.to(model.device) for k, v in inputs2.items()}
-            outputs2 = model(**inputs2)
-
-            with torch.no_grad():
-                ref_outputs2 = ref_model(**inputs2)
-                ref_probs2 = F.softmax(ref_outputs2.logits, dim=-1)
             
-            # Cross-entropy loss (first attempt)
-            response1 = tokenizer.decode(outputs1.logits.argmax(dim=-1)[0], skip_special_tokens=True)
-            response2 = tokenizer.decode(outputs2.logits.argmax(dim=-1)[0], skip_special_tokens=True)
-            reward_round_1 = reward_function(response1, example['correct_answer'])
-            reward_round_2 = reward_function(response2, example['correct_answer'])
-            b = alpha*(reward_round_2 - reward_round_1)
+            # Forward pass with labels for loss calculation
+            outputs2 = model(**inputs2, labels=inputs2['input_ids'])
             
-            # Log probabilities and apply KL divergence loss
-            logits1 = outputs1.logits
-            log_probs1 = F.log_softmax(logits1, dim=-1)
-            kl_loss1 = F.kl_div(log_probs1, ref_probs1, reduction='batchmean')
-
-            logits2 = outputs2.logits
-            log_probs2 = F.log_softmax(logits2, dim=-1)
-            kl_loss2 = F.kl_div(log_probs2, ref_probs2, reduction='batchmean')
+            # Ensure we have a loss
+            if outputs2.loss is None:
+                print("Warning: Model output does not include loss. Using cross-entropy loss.")
+                logits = outputs2.logits
+                loss = F.cross_entropy(logits.view(-1, logits.size(-1)), inputs2['input_ids'].view(-1))
+            else:
+                loss = outputs2.loss
             
-            total_loss_value = -b - reward_round_1 + beta_kl * (kl_loss1 + kl_loss2)
+            # Compute reward based on self-correction
+            generated_text1 = tokenizer.decode(outputs1.logits.argmax(dim=-1)[0], skip_special_tokens=True)
+            generated_text2 = tokenizer.decode(outputs2.logits.argmax(dim=-1)[0], skip_special_tokens=True)
+            reward = reward_function(generated_text1, generated_text2, example.get('correct_answer', ''))
+            
+            # Apply reward shaping
+            shaped_loss = loss * reward
             
             optimizer.zero_grad()
-            total_loss_value.backward()
+            shaped_loss.backward()
             optimizer.step()
             
-            total_loss += total_loss_value.item()
-        print(f"Stage I - Epoch {epoch+1}, Loss: {total_loss:.4f}")
+            total_loss += shaped_loss.item()
+        print(f"Stage II - Epoch {epoch+1}, Total Loss: {total_loss:.4f}")
+
+def stage2_chat_format(example):
+    return [
+        {"role": "user", "content": example['question']},
+        {"role": "assistant", "content": f"첫 번째 답변: {example.get('original_answer', '')}"},
+        {"role": "user", "content": "이 답변을 다시 한 번 검토해주세요."},
+        {"role": "assistant", "content": "검토 후 답변: "}
+    ]
+
+def chat_format(example):
+    return [
+        {"role": "user", "content": example['question']},
+        {"role": "assistant", "content": f"최종 답변: {example.get('correct_answer', '')}"}
+    ]
 
 # Main function to run the training process
 def main(config_file=None):
