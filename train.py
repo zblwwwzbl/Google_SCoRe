@@ -25,7 +25,7 @@ def load_config(config_file=None):
     else:
         # Default configuration
         config = {
-            "model_name": "gemma-2-2B-it",  # Smallest Mamba model
+            "model_name": "state-spaces/mamba-1.4b-hf",  # Smallest Mamba model
             "learning_rate": 1e-5,
             "epochs_stage_1": 2,
             "epochs_stage_2": 3,
@@ -79,12 +79,15 @@ def stage_one_initialization(ref_model, model, tokenizer, data, epochs=2, lr=1e-
             print(first_round_conversation)
             
             # Convert conversation to a single string
-            conversation_text = tokenizer.apply_chat_template(first_round_conversation, tokenize=False, add_generation_prompt=True)
+            conversation_text = "Answer the following question: What is 1+1?"
             
             inputs1 = tokenizer(conversation_text, return_tensors="pt", padding=True, truncation=True)
-            inputs1 = {k: v.to(model.device) for k, v in inputs1.items()}
+            # inputs1 = {k: v.to(model.device) for k, v in inputs1.items()}
             
             outputs1 = model(**inputs1, labels=inputs1['input_ids'])
+
+            response1 = tokenizer.decode(outputs1.logits.argmax(dim=-1)[0], skip_special_tokens=True)
+            print("START RESPONSE: \n" + response1 + "\nEND RESPONSE")
 
             with torch.no_grad():
                 ref_outputs = ref_model(**inputs1)  # Reference policy outputs
@@ -96,9 +99,7 @@ def stage_one_initialization(ref_model, model, tokenizer, data, epochs=2, lr=1e-
             inputs2 = {k: v.to(model.device) for k, v in inputs2.items()}
             outputs2 = model(**inputs2)
 
-            response1 = tokenizer.decode(outputs1.logits.argmax(dim=-1)[0], skip_special_tokens=True)
             response2 = tokenizer.decode(outputs2.logits.argmax(dim=-1)[0], skip_special_tokens=True)
-            print("START RESPONSE: \n" + response1 + "\nEND RESPONSE")
             
             # Cross-entropy loss (first attempt)
             reward_stage_one = reward_function(response2, example['correct_answer'])
@@ -189,11 +190,11 @@ def main(config_file=None):
         <|{{ message.role }}|>{{ message.content }}
         {% endfor %}
         """
-    model = AutoModelForCausalLM.from_pretrained(model_name, 
+    model = MambaForCausalLM.from_pretrained(model_name, 
                                       device_map="auto", 
                                       attn_implementation='eager')
 
-    ref_model = AutoModelForCausalLM.from_pretrained(model_name, 
+    ref_model = MambaForCausalLM.from_pretrained(model_name, 
                                       device_map="auto", 
                                       attn_implementation='eager')
     ref_model.eval()
