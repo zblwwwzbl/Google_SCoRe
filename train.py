@@ -190,12 +190,10 @@ def main(config_file=None):
     model = MambaForCausalLM.from_pretrained(model_name, 
                                       device_map="auto", 
                                       attn_implementation='eager')
-    model.device = "cuda" if torch.cuda.is_available() else "cpu"
 
     ref_model = MambaForCausalLM.from_pretrained(model_name, 
                                       device_map="auto", 
                                       attn_implementation='eager')
-    ref_model.device = "cuda" if torch.cuda.is_available() else "cpu"
     ref_model.eval()
 
     # Load the dataset
