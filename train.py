@@ -96,8 +96,9 @@ def stage_one_initialization(ref_model, model, tokenizer, data, epochs=2, lr=1e-
             inputs2 = {k: v.to(model.device) for k, v in inputs2.items()}
             outputs2 = model(**inputs2)
 
+            response1 = tokenizer.decode(outputs1.logits.argmax(dim=-1)[0], skip_special_tokens=True)
             response2 = tokenizer.decode(outputs2.logits.argmax(dim=-1)[0], skip_special_tokens=True)
-            print("START RESPONSE: \n" + response2 + "\nEND RESPONSE")
+            print("START RESPONSE: \n" + response1 + "\nEND RESPONSE")
             
             # Cross-entropy loss (first attempt)
             reward_stage_one = reward_function(response2, example['correct_answer'])
