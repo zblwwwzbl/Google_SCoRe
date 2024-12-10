@@ -81,12 +81,13 @@ def stage_one_initialization(ref_model, model, tokenizer, data, epochs=2, lr=1e-
             conversation_text = tokenizer.apply_chat_template(first_round_conversation, tokenize=False, add_generation_prompt=True)
             
             inputs1 = tokenizer(conversation_text, return_tensors="pt", padding=True, truncation=True)
-            inputs1 = {k: v.to(model.device) for k, v in inputs1.items()}
+            # inputs1 = {k: v.to(model.device) for k, v in inputs1.items()}
             
             outputs1 = model(**inputs1)
 
             sample = model.generate(inputs1['input_ids'], max_length=1000, num_return_sequences=1)
-            print("START RESPONSE: \n" + tokenizer.decode(sample[0], skip_special_tokens=True) + "\nEND RESPONSE")
+            response1 = tokenizer.decode(sample[0], skip_special_tokens=True)
+            print("START RESPONSE: \n" + response1 + "\nEND RESPONSE")
 
             with torch.no_grad():
                 ref_outputs = ref_model(**inputs1)  # Reference policy outputs
