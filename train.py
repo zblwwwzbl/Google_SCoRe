@@ -76,6 +76,7 @@ def stage_one_initialization(ref_model, model, tokenizer, data, epochs=2, lr=1e-
         for example in data:
             # Format input using chat_template
             first_round_conversation = first_round_prompt(example)
+            print(first_round_conversation)
             
             # Convert conversation to a single string
             conversation_text = tokenizer.apply_chat_template(first_round_conversation, tokenize=False, add_generation_prompt=True)
