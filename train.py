@@ -17,7 +17,7 @@ def load_config(config_file=None):
     else:
         # Default configuration
         config = {
-            "model_name": "state-spaces/mamba-1.1b",  # Smallest Mamba model
+            "model_name": "state-spaces/mamba-130m-hf",  # Smallest Mamba model
             "learning_rate": 1e-5,
             "epochs_stage_1": 2,
             "epochs_stage_2": 3,
@@ -43,13 +43,18 @@ def reward_function(y, y_star):
     y_star: correct answer (oracle response)
     '''
     #
-    start_keyword = "####" # the answer is prepended by ####
-    start_index = y.find(start_keyword)
+    hash_keyword = "####" # the answer is prepended by ####
+    start_index = y.find(hash_keyword)
     if start_index == -1:
         y_answer = ""
-    
-    start_index += len(start_keyword)
-    y[start_index:].strip() 
+    start_index += len(hash_keyword)
+    y_star[start_index:].strip() 
+
+    hash_index = y.find(hash_keyword)
+    if hash_index == -1:
+        response = ""  # Return the original string if "####" is not found
+    else:
+        response = y[hash_index + len(hash_keyword):].strip()
     
 
 def first_round_prompt(example):
