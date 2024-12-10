@@ -23,7 +23,7 @@ def load_config(config_file=None):
             "epochs_stage_2": 3,
             "beta_kl": 0.1,
             "alpha": 1.5,
-            "data_file": "SCoRe_dataset.csv"
+            "data_file": "SCoRe_Dataset.csv"
         }
     return config
 
@@ -44,17 +44,15 @@ def reward_function(y, y_star):
     '''
     #
     hash_keyword = "####" # the answer is prepended by ####
-    start_index = y.find(hash_keyword)
-    if start_index == -1:
-        y_answer = ""
-    start_index += len(hash_keyword)
-    y_star[start_index:].strip() 
-
     hash_index = y.find(hash_keyword)
     if hash_index == -1:
         response = ""  # Return the original string if "####" is not found
     else:
         response = y[hash_index + len(hash_keyword):].strip()
+    if response == y_star:
+        return 1.0
+    else:
+        return 0
     
 
 def first_round_prompt(example):
