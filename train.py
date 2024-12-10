@@ -7,7 +7,10 @@ import pandas as pd
 import argparse
 import yaml
 
-sc_prompt = "There might be an error in the solution above because of lack of understanding of the question. Please correct the error, if any, and rewrite the solution"
+# sc_prompt = "There might be an error in the solution above because of lack of understanding of the question. Please correct the error, if any, and rewrite the solution"
+GSM_initial_prompt = 'You are a math expert. When you respond, respond only with the Solution of the final Problem, thinking step by step. At the end of the Solution, when you give your final answer, write it in the form "I hope it is correct #### $answer$" '
+
+GSM_self_correcting_prompt = ' There might be an error in the solution above because of lack of understanding of the question. Please correct the error, if any, and rewrite the solution. Only output the final solution! At the end of the Solution, when you give your final answer, write it in the form "I hope it is correct #### $answer$".'
 
 # Load configuration from a YAML file
 def load_config(config_file=None):
@@ -43,7 +46,7 @@ def reward_function(y, y_star):
     y_star: correct answer (oracle response)
     '''
     #
-    hash_keyword = "####" # the answer is prepended by ####
+    hash_keyword = "####" # the answer is prepended by #### in GSM8K
     hash_index = y.find(hash_keyword)
     if hash_index == -1:
         response = ""  # Return the original string if "####" is not found
@@ -57,14 +60,14 @@ def reward_function(y, y_star):
 
 def first_round_prompt(example):
     return [
-        {"role": "user", "content": example['question']},
+        {"role": "user", "content": GSM_initial_prompt+example['question']},
     ]
 
 def second_round_prompt(example, first_round_answer):
     return [
-        {"role": "user", "content": example['question']},
+        {"role": "user", "content": GSM_initial_prompt+example['question']},
         {"role": "assistant", "content": f"{first_round_answer}"},
-        {"role": "user", "content": sc_prompt},
+        {"role": "user", "content": GSM_self_correcting_prompt},
     ]
 
 # Stage I: Train initial model to generate first attempt (y1) and prevent mode collapse
@@ -181,6 +184,8 @@ def main(config_file=None):
     # Load model and tokenizer
     model_name = config["model_name"]
     tokenizer = AutoTokenizer.from_pretrained(model_name)
+
+    tokenizer.chat_template = "{% if not add_generation_prompt is defined %}{% set add_generation_prompt = false %}{% endif %}{% for message in messages %}{{'<|im_start|>' + message['role'] + '\n' + message['content'] + '<|im_end|>' + '\n'}}{% endfor %}{% if add_generation_prompt %}{{ '<|im_start|>assistant\n' }}{% endif %}"
     model = AutoModel.from_pretrained(model_name, 
                                       device_map="auto", 
                                       attn_implementation='eager')
