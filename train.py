@@ -190,12 +190,11 @@ def main(config_file=None):
     df = pd.read_csv(data_file_path)
 
     # Prepare the data for Stage I and Stage II
-    data_stage_one = df[["question", "original_answer"]].to_dict(orient="records")
-    data_stage_two = df[["question", "original_answer", "correct_answer"]].to_dict(orient="records")
+    data_stage = df[["question", "original_answer", "correct_answer"]].to_dict(orient="records")
 
     # Stage I training (Initialization)
     stage_one_initialization(
-        ref_model, model, tokenizer, data_stage_one, 
+        ref_model, model, tokenizer, data_stage, 
         epochs=config["epochs_stage_1"], 
         lr=config["learning_rate"], 
         beta_kl=config["beta_kl"]
@@ -203,7 +202,7 @@ def main(config_file=None):
 
     # Stage II training (Self-correction)
     stage_two_training_with_reward_shaping(
-        ref_model, model, tokenizer, data_stage_two, 
+        ref_model, model, tokenizer, data_stage, 
         epochs=config["epochs_stage_2"], 
         lr=config["learning_rate"], 
         alpha=config["alpha"]
