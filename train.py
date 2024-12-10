@@ -89,6 +89,7 @@ def stage_one_initialization(ref_model, model, tokenizer, data, epochs=2, lr=1e-
             inputs1 = {k: v.to(model.device) for k, v in inputs1.items()}
             
             outputs1 = model(**inputs1)
+            print(outputs1)
 
             with torch.no_grad():
                 ref_outputs = ref_model(**inputs1)  # Reference policy outputs
