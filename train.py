@@ -182,8 +182,12 @@ def main(config_file=None):
     model_name = config["model_name"]
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     model = AutoModel.from_pretrained(model_name, 
-                                                 device_map="auto", 
-                                                 attn_implementation='eager')
+                                      device_map="auto", 
+                                      attn_implementation='eager')
+
+    ref_model = AutoModel.from_pretrained(model_name, 
+                                      device_map="auto", 
+                                      attn_implementation='eager')
 
     # Load the dataset
     data_file_path = config["data_file"]
@@ -195,7 +199,7 @@ def main(config_file=None):
 
     # Stage I training (Initialization)
     stage_one_initialization(
-        model, tokenizer, data_stage_one, 
+        ref_model, model, tokenizer, data_stage_one, 
         epochs=config["epochs_stage_1"], 
         lr=config["learning_rate"], 
         beta_kl=config["beta_kl"]
@@ -203,7 +207,7 @@ def main(config_file=None):
 
     # Stage II training (Self-correction)
     stage_two_training_with_reward_shaping(
-        model, tokenizer, data_stage_two, 
+        ref_model, model, tokenizer, data_stage_two, 
         epochs=config["epochs_stage_2"], 
         lr=config["learning_rate"], 
         alpha=config["alpha"]
