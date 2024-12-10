@@ -94,7 +94,6 @@ def stage_one_initialization(ref_model, model, tokenizer, data, epochs=2, lr=1e-
             inputs2 = tokenizer(conversation_text2, return_tensors="pt", padding=True, truncation=True)
             inputs2 = {k: v.to(model.device) for k, v in inputs2.items()}
             outputs2 = model(**inputs2)
-            print("START INPUT: \n"  + inputs2 + "\nEND INPUT")
 
             response2 = tokenizer.decode(outputs2.logits.argmax(dim=-1)[0], skip_special_tokens=True)
             print("START RESPONSE: \n" + response2 + "\nEND RESPONSE")
