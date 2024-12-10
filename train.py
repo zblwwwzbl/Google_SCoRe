@@ -92,6 +92,7 @@ def stage_one_initialization(ref_model, model, tokenizer, data, epochs=2, lr=1e-
             outputs2 = model(**inputs2)
 
             response2 = tokenizer.decode(outputs2.logits.argmax(dim=-1)[0], skip_special_tokens=True)
+            print(response2)
             
             # Cross-entropy loss (first attempt)
             reward_stage_one = reward_function(response2, example['correct_answer'])
