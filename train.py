@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from transformers import AutoTokenizer, AutoModel, MambaForCausalLM
+from transformers import AutoTokenizer, AutoModel, MambaForCausalLM, AutoModelForCausalLM
 import torch.nn.functional as F
 import pandas as pd
 import argparse
@@ -25,7 +25,7 @@ def load_config(config_file=None):
     else:
         # Default configuration
         config = {
-            "model_name": "state-spaces/mamba-1.4b-hf",  # Smallest Mamba model
+            "model_name": "gemma-2-2B-it",  # Smallest Mamba model
             "learning_rate": 1e-5,
             "epochs_stage_1": 2,
             "epochs_stage_2": 3,
@@ -189,11 +189,11 @@ def main(config_file=None):
         <|{{ message.role }}|>{{ message.content }}
         {% endfor %}
         """
-    model = MambaForCausalLM.from_pretrained(model_name, 
+    model = AutoModelForCausalLM.from_pretrained(model_name, 
                                       device_map="auto", 
                                       attn_implementation='eager')
 
-    ref_model = MambaForCausalLM.from_pretrained(model_name, 
+    ref_model = AutoModelForCausalLM.from_pretrained(model_name, 
                                       device_map="auto", 
                                       attn_implementation='eager')
     ref_model.eval()
