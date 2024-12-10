@@ -84,6 +84,8 @@ def stage_one_initialization(ref_model, model, tokenizer, data, epochs=2, lr=1e-
             device = next(model.parameters()).device
             inputs1 = {k: v.to(device) for k, v in inputs1.items()}
             # inputs1 = {k: v.to(model.device) for k, v in inputs1.items()}
+            print("Inputs device:", inputs1['input_ids'].device)
+            print("Model device:", device)
             
             outputs1 = model(**inputs1)
 
