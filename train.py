@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from transformers import AutoTokenizer, AutoModel, AutoModelForCausalLM
+from transformers import AutoTokenizer, AutoModel, MambaForCausalLM
 import torch.nn.functional as F
 import pandas as pd
 import argparse
@@ -187,11 +187,11 @@ def main(config_file=None):
     tokenizer = AutoTokenizer.from_pretrained(model_name)
 
     tokenizer.chat_template = "{% if not add_generation_prompt is defined %}{% set add_generation_prompt = false %}{% endif %}{% for message in messages %}{{'<|im_start|>' + message['role'] + '\n' + message['content'] + '<|im_end|>' + '\n'}}{% endfor %}{% if add_generation_prompt %}{{ '<|im_start|>assistant\n' }}{% endif %}"
-    model = AutoModel.from_pretrained(model_name, 
+    model = MambaForCausalLM.from_pretrained(model_name, 
                                       device_map="auto", 
                                       attn_implementation='eager')
 
-    ref_model = AutoModel.from_pretrained(model_name, 
+    ref_model = MambaForCausalLM.from_pretrained(model_name, 
                                       device_map="auto", 
                                       attn_implementation='eager')
 
