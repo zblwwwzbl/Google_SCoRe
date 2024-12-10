@@ -85,10 +85,6 @@ def stage_one_initialization(ref_model, model, tokenizer, data, epochs=2, lr=1e-
             
             outputs1 = model(**inputs1, labels=inputs1['input_ids'])
 
-            # sample = model.generate(inputs1['input_ids'], max_length=1000, num_return_sequences=1)
-            # response1 = tokenizer.decode(sample[0], skip_special_tokens=True)
-            # print("START RESPONSE: \n" + response1 + "\nEND RESPONSE")
-
             with torch.no_grad():
                 ref_outputs = ref_model(**inputs1)  # Reference policy outputs
                 ref_probs = F.softmax(ref_outputs.logits, dim=-1)
@@ -186,7 +182,11 @@ def main(config_file=None):
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     
 
-    tokenizer.chat_template = "{% if not add_generation_prompt is defined %}{% set add_generation_prompt = false %}{% endif %}{% for message in messages %}{{'<|im_start|>' + message['role'] + '\n' + message['content'] + '<|im_end|>' + '\n'}}{% endfor %}{% if add_generation_prompt %}{{ '<|im_start|>assistant\n' }}{% endif %}"
+    tokenizer.chat_template = tokenizer.chat_template = """
+        {% for message in messages %}
+        <|{{ message.role }}|>{{ message.content }}
+        {% endfor %}
+        """
     model = MambaForCausalLM.from_pretrained(model_name, 
                                       device_map="auto", 
                                       attn_implementation='eager')
