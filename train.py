@@ -25,7 +25,7 @@ def load_config(config_file=None):
     else:
         # Default configuration
         config = {
-            "model_name": "state-spaces/mamba-1.4b-hf",  # Smallest Mamba model
+            "model_name": "Qwen/Qwen2.5-Math-1.5B-Instruct",  # Smallest Mamba model
             "learning_rate": 1e-5,
             "epochs_stage_1": 2,
             "epochs_stage_2": 3,
